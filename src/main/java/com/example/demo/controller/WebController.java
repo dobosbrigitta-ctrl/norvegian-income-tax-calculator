@@ -12,6 +12,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.example.demo.service.OfferAnalysisService;
 
 @Slf4j
 @Validated
@@ -19,9 +20,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class WebController {
 
     private final ExchangeRate exchangeRate;
+    private final OfferAnalysisService offerAnalysisService;
 
-    public WebController(ExchangeRate exchangeRate) {
+    public WebController(
+            ExchangeRate exchangeRate,
+            OfferAnalysisService offerAnalysisService) {
         this.exchangeRate = exchangeRate;
+        this.offerAnalysisService = offerAnalysisService;
     }
 
     @GetMapping("/")
@@ -102,6 +107,77 @@ public class WebController {
             model.addAttribute("HealthContribution", String.valueOf(Math.round(taxCalculator.calculateHealthContribution())));
             return "calculate";
         }
+    }
+    @GetMapping("/compare")
+    public String compareOffers() {
+        return "compare";
+    }
+
+    @PostMapping("/compare")
+    public String processComparison(
+            @RequestParam @Min(1) int grossSalaryA,
+            @RequestParam @Min(0) int housingCostA,
+            @RequestParam @Min(0) int otherCostsA,
+            @RequestParam @Min(1) int grossSalaryB,
+            @RequestParam @Min(0) int housingCostB,
+            @RequestParam @Min(0) int otherCostsB,
+            Model model) {
+
+
+        TaxCalculator calculatorA = new TaxCalculator(grossSalaryA);
+        TaxCalculator calculatorB = new TaxCalculator(grossSalaryB);
+
+
+        long monthlyNetA = Math.round(
+                calculatorA.calculateNetValue() / 12.0);
+        long monthlyNetB = Math.round(
+                calculatorB.calculateNetValue() / 12.0);
+
+
+        long remainingA = monthlyNetA - housingCostA - otherCostsA;
+        long remainingB = monthlyNetB - housingCostB - otherCostsB;
+
+        model.addAttribute("grossSalaryA", grossSalaryA);
+        model.addAttribute("grossSalaryB", grossSalaryB);
+        model.addAttribute("monthlyNetA", monthlyNetA);
+        model.addAttribute("monthlyNetB", monthlyNetB);
+        model.addAttribute("remainingA", remainingA);
+        model.addAttribute("remainingB", remainingB);
+        model.addAttribute("difference", Math.abs(remainingA - remainingB));
+
+        if (remainingA > remainingB) {
+            model.addAttribute("comparisonSummary",
+                    "Offer A leaves more estimated money each month.");
+        } else if (remainingB > remainingA) {
+            model.addAttribute("comparisonSummary",
+                    "Offer B leaves more estimated money each month.");
+        } else {
+            model.addAttribute("comparisonSummary",
+                    "Both offers leave the same estimated monthly amount.");
+        }
+
+        try {
+            String aiAnalysis = offerAnalysisService.analyzeOffers(
+                    grossSalaryA,
+                    monthlyNetA,
+                    remainingA,
+                    grossSalaryB,
+                    monthlyNetB,
+                    remainingB
+            );
+
+            model.addAttribute("aiAnalysis", aiAnalysis);
+
+        } catch (Exception e) {
+            log.warn("[AI_ANALYSIS_FAILED] AI offer analysis could not be completed.", e);
+
+            model.addAttribute(
+                    "aiAnalysisError",
+                    "AI analysis is currently unavailable. The calculated comparison is still available."
+            );
+        }
+
+        return "compare";
     }
 }
 
