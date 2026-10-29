@@ -1,16 +1,17 @@
 
 package com.example.demo.service;
 
-import org.springframework.ai.chat.client.ChatClient;
+import com.example.demo.NorwegianJobOfferAgentService;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OfferAnalysisService {
 
-    private final ChatClient chatClient;
+    private final NorwegianJobOfferAgentService agentService;
 
-    public OfferAnalysisService(ChatClient.Builder chatClientBuilder) {
-        this.chatClient = chatClientBuilder.build();
+    public OfferAnalysisService(
+            NorwegianJobOfferAgentService agentService) {
+        this.agentService = agentService;
     }
 
     public String analyzeOffers(
@@ -52,9 +53,6 @@ public class OfferAnalysisService {
                 grossSalaryB, monthlyNetB, remainingB
         );
 
-        return chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
+        return agentService.askAgent(prompt);
     }
 }
